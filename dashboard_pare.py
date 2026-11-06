@@ -11,7 +11,9 @@ import plotly.graph_objects as go
 import os
 import numpy as np
 import sys
-from streamlit_gsheets import GSheetsConnection
+import re
+from google.oauth2.service_account import Credentials
+import gspread
 
 try:
     from utils import mostrar_ip_sidebar
@@ -23,6 +25,9 @@ print(f"🐍 PYTHON: {sys.executable}")
 print(f"📁 Working dir: {os.getcwd()}")
 
 # ============ CONFIGURACIÓN IA (Groq) ============
+# ============ CONFIGURACIÓN IA (Groq) ============
+import os
+
 try:
     from groq import Groq
     GROQ_DISPONIBLE = True
@@ -30,34 +35,48 @@ except ImportError as e:
     GROQ_DISPONIBLE = False
     print(f"ERROR IMPORTANDO GROQ: {e}")
 
-RUTA_GROQ_KEY = r"C:\Users\SEGURIDAD\Pare y Siga\groq_key.txt"
-
-GROQ_API_KEY = ""
-if os.path.exists(RUTA_GROQ_KEY):
-    try:
-        with open(RUTA_GROQ_KEY, "r", encoding="utf-8") as f:
-            GROQ_API_KEY = f.read().strip()
-    except Exception as e:
-        print(f"❌ Error leyendo clave: {e}")
-
 MODELO_GROQ = "openai/gpt-oss-120b"
 
-print("=" * 60)
-print("CONFIGURACIÓN IA")
-print(f"  GROQ_DISPONIBLE:  {GROQ_DISPONIBLE}")
-print(f"  ¿Existe clave?:   {os.path.exists(RUTA_GROQ_KEY)}")
-print(f"  Longitud clave:   {len(GROQ_API_KEY)}")
-print("=" * 60)
+# --- LECTURA A PRUEBA DE BALAS ---
+GROQ_API_KEY = ""
 
+# Intento 1: Leer archivo directamente con Python puro
+try:
+    if os.path.exists(".streamlit/secrets.toml"):
+        with open(".streamlit/secrets.toml", "r", encoding="utf-8") as f:
+            for linea in f:
+                if linea.strip().startswith("GROQ_API_KEY"):
+                    # Extrae lo que está entre comillas
+                    GROQ_API_KEY = linea.split("=")[1].strip().strip('"').strip("'")
+                    break
+    else:
+        st.error("❌ ERROR CRÍTICO: No se encuentra el archivo .streamlit/secrets.toml")
+except Exception as e:
+    st.error(f"❌ Error leyendo archivo: {e}")
+
+# Intento 2: Si el archivo falló, usar st.secrets
+if not GROQ_API_KEY:
+    try:
+        GROQ_API_KEY = str(st.secrets["GROQ_API_KEY"]).strip()
+    except Exception:
+        pass
+
+# Intento 3: Variable de entorno (por si acaso)
+if not GROQ_API_KEY:
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
+print("=" * 60)
+print(f"🔑 LONGITUD DE LA CLAVE DETECTADA: {len(GROQ_API_KEY)}")
+print("=" * 60)
 
 def ia_disponible():
-    return bool(GROQ_DISPONIBLE and GROQ_API_KEY and len(GROQ_API_KEY) > 20)
-
+    return bool(GROQ_DISPONIBLE and len(GROQ_API_KEY) > 10)
 
 cliente_ia = None
 if ia_disponible():
     try:
         cliente_ia = Groq(api_key=GROQ_API_KEY)
+        print("✅ Cliente Groq creado correctamente.")
     except Exception as e:
         print(f"❌ Error creando cliente Groq: {e}")
 
@@ -104,31 +123,53 @@ st.set_page_config(
     page_icon="🦺",
     layout="wide"
 )
+# Forzar la carga de la clave cuando la app ya está corriendo
+#cargar_clave_groq()
+print(f"🔍 DEBUG: Longitud de la clave cargada: {len(GROQ_API_KEY)}")  
 
-# --- Rutas de datos ---
+# --- Rutas de datos locales (Fallback) ---
 RUTA_EXCEL   = r"C:\Users\SEGURIDAD\Pare y Siga\datos_pare_unificados.xlsx"
 RUTA_CSV     = r"C:\Users\SEGURIDAD\Pare y Siga\datos_pare_unificados.csv"
 RUTA_PARQUET = r"C:\Users\SEGURIDAD\Pare y Siga\datos_pare_unificados.parquet"
 
-# ============ CARGA DESDE GOOGLE SHEETS ============
+# ============ CARGA DESDE GOOGLE SHEETS ============ 
 def cargar_datos_google_sheets():
-    """Lee directamente de Google Sheets usando la conexión de Streamlit."""
     try:
-        # Crea la conexión (Streamlit buscará la configuración en los secrets)
-        conn = st.connection("gsheets", type=GSheetsConnection)
+        import os
+        from google.oauth2.service_account import Credentials
+        import gspread
         
-        # Lee los datos. El nombre de la hoja debe coincidir con el que pusiste en los secrets
-        df = conn.read(worksheet="Respuestas de formulario 1", ttl=300)
+        # 1. Intentar leer el archivo local (para cuando pruebas en Codespaces)
+        if os.path.exists("google_creds.json"):
+            creds = Credentials.from_service_account_file(
+                "google_creds.json",
+                scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            )
+        else:
+            # 2. Si no hay archivo, leer desde los Secrets de Streamlit (para la nube)
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            creds = Credentials.from_service_account_info(
+                creds_dict,
+                scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            )
+            
+        client = gspread.authorize(creds)
         
-        # Eliminar filas vacías que a veces trae Google Sheets
+        # Usa la URL y el nombre de hoja desde secrets
+        url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        worksheet_name = st.secrets["connections"]["gsheets"]["worksheet"]
+        
+        sheet = client.open_by_url(url)
+        worksheet = sheet.worksheet(worksheet_name)
+        
+        data = worksheet.get_all_values()
+        df = pd.DataFrame(data[1:], columns=data[0])
         df = df.dropna(how="all")
-        
         print(f"✅ Datos cargados desde Google Sheets: {df.shape}")
         return df
     except Exception as e:
-        print(f"⚠️ Error con Google Sheets vía Streamlit: {e}")
-        raise e  # Lanza el error para que tu función principal haga el fallback al Excel
-
+        print(f"⚠️ Error con Google Sheets: {e}")
+        raise e 
 
 # ============ CARGA DE DATOS ============
 @st.cache_data(ttl=300, show_spinner=False)
@@ -864,7 +905,6 @@ if len(actos_validos) > 0:
 # ============ HEATMAP ÁREA × CAUSA ============
 st.subheader("🔥 Mapa de calor: Área × Causa")
 
-# Filtrar áreas y causas válidas para el mapa de calor
 dff_area_valida = dff[
     (dff['area'] != 'SIN DATO') & (dff['area'] != '') & (dff['area'].notna()) &
     (dff['causa'] != 'SIN DATO') & (dff['causa'] != '') & (dff['causa'].notna())
@@ -886,7 +926,6 @@ if pivot.size > 0:
 # ============ HEATMAP CARGO × CAUSA ============
 st.subheader("🚨 Comportamiento crítico por cargo (Cargo × Causa)")
 
-# Filtrar cargos y causas válidas para el mapa de calor
 dff_cargo_valido = dff[
     (dff['cargo_observado'] != 'SIN DATO') & (dff['cargo_observado'] != '') & (dff['cargo_observado'].notna()) &
     (dff['causa'] != 'SIN DATO') & (dff['causa'] != '') & (dff['causa'].notna())
@@ -911,7 +950,6 @@ if pivot_cargo.size > 0:
 # ============ TOP 3 CAUSAS POR CARGO ============
 st.subheader("📊 Top 3 causas por cargo")
 
-# Filtrar datos válidos (causa y cargo no vacíos)
 df_causas = dff[
     (dff['causa'] != 'SIN DATO') & (dff['causa'] != '') & (dff['causa'].notna()) &
     (dff['cargo_observado'] != 'SIN DATO') & (dff['cargo_observado'] != '') & (dff['cargo_observado'].notna())
@@ -1561,15 +1599,8 @@ st.divider()
 st.subheader("🤖 Análisis inteligente con IA (Groq)")
 
 if ia_disponible():
-    st.success(f"✅ Groq configurado. Clave detectada: {GROQ_API_KEY[:10]}...")
-else:
-    st.warning(
-        "⚠️ **Configura tu API Key de Groq**\n\n"
-        "Crea un archivo `groq_key.txt` en la carpeta del proyecto con tu clave "
-        "de Groq (obtenida en https://console.groq.com/keys)"
-    )
-
-if ia_disponible():
+    st.success("✅ Groq configurado correctamente.")
+    
     if st.button("🧠 Generar análisis IA de estos datos", type="primary"):
         with st.spinner("La IA está analizando tus datos..."):
             resumen = {
@@ -1601,5 +1632,11 @@ if ia_disponible():
                     "text/markdown",
                     key="dl_ia"
                 )
+else:
+    st.warning(
+        f"⚠️ **Falta la API Key de Groq**\n\n"
+        f"Longitud detectada: `{len(GROQ_API_KEY)}` caracteres.\n"
+        f"Si dice 0, el archivo no se está leyendo. Revisa la terminal."
+    ) 
 
-st.caption("Dashboard SST · PARE y SIGA · Elaborado por Seguridad y Salud en el Trabajo")
+st.caption("Dashboard SST · PARE y SIGA · Elaborado por Seguridad y Salud en el Trabajo JLRL")  
