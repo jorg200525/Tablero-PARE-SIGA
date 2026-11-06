@@ -132,7 +132,7 @@ RUTA_EXCEL   = r"C:\Users\SEGURIDAD\Pare y Siga\datos_pare_unificados.xlsx"
 RUTA_CSV     = r"C:\Users\SEGURIDAD\Pare y Siga\datos_pare_unificados.csv"
 RUTA_PARQUET = r"C:\Users\SEGURIDAD\Pare y Siga\datos_pare_unificados.parquet"
 
-# ============ CARGA DESDE GOOGLE SHEETS ============ 
+# ============ CARGA DESDE GOOGLE SHEETS ============  
 def cargar_datos_google_sheets():
     try:
         import os
