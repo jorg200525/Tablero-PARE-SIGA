@@ -15,6 +15,29 @@ import re
 from google.oauth2.service_account import Credentials
 import gspread
 
+import re
+
+def limpiar_clave_privada(clave):
+    """Limpia la clave privada para asegurar que tenga el formato PEM correcto."""
+    clave = clave.strip()
+    # Reemplaza los \n literales por saltos de línea reales
+    if "\\n" in clave:
+        clave = clave.replace("\\n", "\n")
+    
+    # Extrae solo el cuerpo de la clave (sin los encabezados)
+    if "-----BEGIN PRIVATE KEY-----" in clave:
+        cuerpo = clave.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
+    elif "-----BEGIN RSA PRIVATE KEY-----" in clave:
+        cuerpo = clave.replace("-----BEGIN RSA PRIVATE KEY-----", "").replace("-----END RSA PRIVATE KEY-----", "")
+    else:
+        cuerpo = clave
+        
+    # Elimina cualquier espacio en blanco o salto de línea del cuerpo
+    cuerpo = re.sub(r"\s+", "", cuerpo)
+    
+    # Reconstruye la clave con el formato correcto
+    return f"-----BEGIN PRIVATE KEY-----\n{cuerpo}\n-----END PRIVATE KEY-----\n"
+
 try:
     from utils import mostrar_ip_sidebar
     UTILS_DISPONIBLE = True
@@ -139,15 +162,18 @@ def cargar_datos_google_sheets():
         from google.oauth2.service_account import Credentials
         import gspread
         
-        # 1. Intentar leer el archivo local (para cuando pruebas en Codespaces)
+        # 1. Intentar leer el archivo local (para Codespaces)
         if os.path.exists("google_creds.json"):
             creds = Credentials.from_service_account_file(
                 "google_creds.json",
                 scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             )
         else:
-            # 2. Si no hay archivo, leer desde los Secrets de Streamlit (para la nube)
+            # 2. Leer desde los Secrets y limpiar la clave
             creds_dict = dict(st.secrets["gcp_service_account"])
+            if "private_key" in creds_dict:
+                creds_dict["private_key"] = limpiar_clave_privada(creds_dict["private_key"])
+                
             creds = Credentials.from_service_account_info(
                 creds_dict,
                 scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -155,7 +181,6 @@ def cargar_datos_google_sheets():
             
         client = gspread.authorize(creds)
         
-        # Usa la URL y el nombre de hoja desde secrets
         url = st.secrets["connections"]["gsheets"]["spreadsheet"]
         worksheet_name = st.secrets["connections"]["gsheets"]["worksheet"]
         
@@ -169,7 +194,7 @@ def cargar_datos_google_sheets():
         return df
     except Exception as e:
         print(f"⚠️ Error con Google Sheets: {e}")
-        raise e 
+        raise e  
 
 # ============ CARGA DE DATOS ============
 @st.cache_data(ttl=300, show_spinner=False)
