@@ -4,6 +4,6 @@ plotly
 numpy
 scikit-learn
 openpyxl
-gspread
 google-auth
 groq
+st-gsheets-connection
