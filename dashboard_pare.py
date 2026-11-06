@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import os
 import numpy as np
 import sys
+from streamlit_gsheets import GSheetsConnection
 
 try:
     from utils import mostrar_ip_sidebar
@@ -109,35 +110,24 @@ RUTA_EXCEL   = r"C:\Users\SEGURIDAD\Pare y Siga\datos_pare_unificados.xlsx"
 RUTA_CSV     = r"C:\Users\SEGURIDAD\Pare y Siga\datos_pare_unificados.csv"
 RUTA_PARQUET = r"C:\Users\SEGURIDAD\Pare y Siga\datos_pare_unificados.parquet"
 
-# --- Configuración Google Sheets ---
-RUTA_GOOGLE_CREDS = r"C:\Users\SEGURIDAD\Pare y Siga\google_creds.json"
-URL_GOOGLE_SHEET  = "https://docs.google.com/spreadsheets/d/1jzXWXcpeZQRYIz7toH8DOIIGIv9nWpq2LRHtir7voZQ/edit"
-NOMBRE_HOJA       = "Respuestas de formulario 1"
-
-
 # ============ CARGA DESDE GOOGLE SHEETS ============
 def cargar_datos_google_sheets():
-    """Lee directamente de Google Sheets."""
-    import gspread
-    from google.oauth2.service_account import Credentials
-
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    creds = Credentials.from_service_account_file(RUTA_GOOGLE_CREDS, scopes=scopes)
-    gc = gspread.authorize(creds)
-
-    spreadsheet = gc.open_by_url(URL_GOOGLE_SHEET)
-    worksheet = spreadsheet.worksheet(NOMBRE_HOJA)
-
-    data = worksheet.get_all_values()
-    if len(data) < 2:
-        raise ValueError("La hoja de Google está vacía o solo tiene encabezados")
-
-    df = pd.DataFrame(data[1:], columns=data[0])
-    print(f"✅ Datos cargados desde Google Sheets: {df.shape}")
-    return df
+    """Lee directamente de Google Sheets usando la conexión de Streamlit."""
+    try:
+        # Crea la conexión (Streamlit buscará la configuración en los secrets)
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        # Lee los datos. El nombre de la hoja debe coincidir con el que pusiste en los secrets
+        df = conn.read(worksheet="Respuestas de formulario 1", ttl=300)
+        
+        # Eliminar filas vacías que a veces trae Google Sheets
+        df = df.dropna(how="all")
+        
+        print(f"✅ Datos cargados desde Google Sheets: {df.shape}")
+        return df
+    except Exception as e:
+        print(f"⚠️ Error con Google Sheets vía Streamlit: {e}")
+        raise e  # Lanza el error para que tu función principal haga el fallback al Excel
 
 
 # ============ CARGA DE DATOS ============
