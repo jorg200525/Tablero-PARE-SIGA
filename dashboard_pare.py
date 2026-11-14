@@ -1526,6 +1526,25 @@ else:
                             'Área', 'Cargo', 'Acto Seguro Reforzado']
     detalle_siga = detalle_siga.sort_values('Fecha', ascending=False)
 
+        # ============================================================
+    # ✅ INDICADOR TOTAL DE TARJETAS SIGA
+    # ============================================================
+    st.markdown("---")
+    st.markdown("#### 📋 Detalle de tarjetas SIGA aplicadas")
+    st.caption("Registro cronológico: quién aplica (reportante) y quién recibe (colaborador observado).")
+
+    # Indicador destacado de total de tarjetas
+    total_siga_actual = len(df_siga)
+    st.info(f"### 📊 Total de tarjetas SIGA en el filtro actual: **{total_siga_actual:,}**")
+    
+    # (El resto del código de la tabla sigue igual...)
+    detalle_siga = df_siga[[
+        'fecha', 'reportante', 'colaborador_observado',
+        'area', 'cargo_observado', 'acto_seguro'
+    ]].copy()
+    
+    # ... resto del código ...
+
     # Filtros
     col_f1, col_f2 = st.columns(2)
     with col_f1:
