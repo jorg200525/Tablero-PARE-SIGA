@@ -1535,13 +1535,10 @@ else:
 
     # Indicador destacado de total de tarjetas
     total_siga_actual = len(df_siga)
-    st.info(f"### 📊 Total de tarjetas SIGA en el filtro actual: **{total_siga_actual:,}**")
-    
-    # (El resto del código de la tabla sigue igual...)
-    detalle_siga = df_siga[[
-        'fecha', 'reportante', 'colaborador_observado',
-        'area', 'cargo_observado', 'acto_seguro'
-    ]].copy()
+        # Opción visual de KPI grande
+    col_total, _ = st.columns([1, 3])
+    with col_total:
+        st.metric(label="📋 Total Tarjetas SIGA", value=f"{total_siga_actual:,}") 
     
     # ... resto del código ...
 
