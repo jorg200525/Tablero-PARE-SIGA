@@ -1400,6 +1400,40 @@ st.divider()
 st.subheader("✅ Reforzamiento positivo — Tarjeta SIGA")
 df_siga = dff[dff['tipo_tarjeta'].str.contains('SIGA', na=False)].copy()
 
+# ============ SIGA ============
+st.divider()
+st.subheader("✅ Reforzamiento positivo — Tarjeta SIGA")
+df_siga = dff[dff['tipo_tarjeta'].str.contains('SIGA', na=False)].copy()
+
+# ✅ FIX: Unificar columnas específicas de SIGA
+if len(df_siga) > 0:
+    # 1. Colaborador
+    cols_colab_siga = [c for c in df_siga.columns if 'NOMBRES Y APELLIDOS DEL COLABORADOR' in c.upper()]
+    if cols_colab_siga:
+        df_siga['colaborador_observado'] = df_siga[cols_colab_siga].bfill(axis=1).iloc[:, 0].fillna('SIN DATO').astype(str).str.strip().str.upper()
+
+    # 2. Área
+    cols_area_siga = [c for c in df_siga.columns if 'AREA A LA QUE PERTENECE' in c.upper()]
+    if cols_area_siga:
+        df_siga['area'] = df_siga[cols_area_siga].bfill(axis=1).iloc[:, 0].fillna('SIN DATO').astype(str).str.strip().str.upper()
+
+    # 3. Cargo
+    cols_cargo_siga = [c for c in df_siga.columns if 'CARGO DEL COLABORADOR' in c.upper()]
+    if cols_cargo_siga:
+        df_siga['cargo_observado'] = df_siga[cols_cargo_siga].bfill(axis=1).iloc[:, 0].fillna('SIN DATO').astype(str).str.strip().str.upper()
+
+    # 4. Limpiar valores vacíos o raros
+    for col in ['colaborador_observado', 'area', 'cargo_observado']:
+        if col in df_siga.columns:
+            df_siga[col] = df_siga[col].replace(['', ' ', 'nan', 'NaN', 'NAN', 'None', 'NONE'], 'SIN DATO')
+            df_siga[col] = df_siga[col].fillna('SIN DATO').astype(str).str.strip().str.upper()
+
+if len(df_siga) == 0:
+    st.info("No hay registros SIGA en el filtro actual.")
+else:
+    # ... (el resto del código de SIGA sigue igual)
+    
+
 if len(df_siga) == 0:
     st.info("No hay registros SIGA en el filtro actual.")
 else:
