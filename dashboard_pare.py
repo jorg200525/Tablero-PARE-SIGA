@@ -1439,7 +1439,75 @@ else:
         fig.update_layout(yaxis={'categoryorder': 'total ascending'}, height=450)
         st.plotly_chart(fig, use_container_width=True)
 
+    # ============================================================
+    # ✅ NUEVO: EVOLUCIÓN MENSUAL Y SEMANAL SIGA
+    # ============================================================
+    st.markdown("---")
+    st.markdown("#### 📈 Evolución temporal del reforzamiento positivo")
 
+    col_ev1, col_ev2 = st.columns(2)
+
+    # --- Evolución Mensual ---
+    with col_ev1:
+        trend_siga_mensual = (df_siga.groupby([df_siga['fecha'].dt.to_period('M'), 'anio'])
+                              .size()
+                              .reset_index(name='observaciones'))
+        trend_siga_mensual['fecha'] = trend_siga_mensual['fecha'].dt.to_timestamp()
+        trend_siga_mensual['anio'] = trend_siga_mensual['anio'].astype(str)
+
+        if len(trend_siga_mensual) > 0:
+            fig_mensual = px.line(
+                trend_siga_mensual,
+                x='fecha',
+                y='observaciones',
+                color='anio',
+                markers=True,
+                title="📅 Evolución Mensual (SIGA)",
+                labels={'fecha': 'Mes', 'observaciones': 'N° Reforzamientos'},
+                color_discrete_sequence=px.colors.qualitative.G10
+            )
+            fig_mensual.update_traces(line_width=3)
+            fig_mensual.update_layout(height=350, hovermode='x unified')
+            st.plotly_chart(fig_mensual, use_container_width=True)
+        else:
+            st.info("No hay datos mensuales SIGA.")
+
+    # --- Evolución Semanal ---
+    with col_ev2:
+        trend_siga_semanal = (df_siga.groupby('anio_semana_label')
+                              .agg(observaciones=('fecha', 'size'),
+                                   inicio=('inicio_semana', 'first'))
+                              .reset_index()
+                              .sort_values('anio_semana_label'))
+
+        if len(trend_siga_semanal) > 0:
+            fig_semanal = px.line(
+                trend_siga_semanal,
+                x='anio_semana_label',
+                y='observaciones',
+                markers=True,
+                title="📆 Evolución Semanal (SIGA)",
+                labels={'anio_semana_label': 'Semana', 'observaciones': 'N° Reforzamientos'},
+                text='observaciones'
+            )
+            fig_semanal.update_traces(
+                line_color='#00CC96', line_width=3,
+                marker=dict(size=10), textposition='top center'
+            )
+            # Promedio semanal
+            prom_sem = trend_siga_semanal['observaciones'].mean()
+            fig_semanal.add_hline(
+                y=prom_sem, line_dash='dash', line_color='orange',
+                annotation_text=f"Promedio: {prom_sem:.0f}",
+                annotation_position="right"
+            )
+            fig_semanal.update_layout(
+                height=350, hovermode='x unified',
+                xaxis=dict(type='category', tickangle=-45)
+            )
+            st.plotly_chart(fig_semanal, use_container_width=True)
+        else:
+            st.info("No hay datos semanales SIGA.")  
 # ============ ACADEMIA DE SEGURIDAD ============
 st.divider()
 st.subheader("🎓 Personal derivado a Academia de Seguridad")
