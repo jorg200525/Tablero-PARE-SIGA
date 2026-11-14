@@ -1399,14 +1399,14 @@ except Exception as e:
 # ============ SIGA ============
 st.divider()
 st.subheader("✅ Reforzamiento positivo — Tarjeta SIGA")
+
+# ✅ 1. Filtrar SOLO los datos SIGA que vienen del sidebar
 df_siga = dff[dff['tipo_tarjeta'].str.contains('SIGA', na=False)].copy()
 
 if len(df_siga) == 0:
     st.info("No hay registros SIGA en el filtro actual.")
 else:
-    # ============================================================
-    # ✅ FIX: Extraer directo de las columnas de SIGA
-    # ============================================================
+    # ✅ 2. Unificar columnas de SIGA
     def limpiar_columna_siga(nombre_columna):
         if nombre_columna in df_siga.columns:
             return (df_siga[nombre_columna]
@@ -1417,23 +1417,20 @@ else:
                     .replace(['', ' ', 'NAN', 'NONE'], 'SIN DATO'))
         return pd.Series(['SIN DATO'] * len(df_siga), index=df_siga.index)
 
-    # Asignar las columnas correctas de SIGA
     df_siga['colaborador_observado'] = limpiar_columna_siga('NOMBRES Y APELLIDOS DEL COLABORADOR OBSERVADO (SIGA) :')
     df_siga['area'] = limpiar_columna_siga('AREA A LA QUE PERTENECE EL COLABORADOR OBSERVADO :')
     df_siga['cargo_observado'] = limpiar_columna_siga('Seleccione el cargo del colaborador observado')
-    
-    # Asegurar que acto_seguro también esté limpio
     df_siga['acto_seguro'] = limpiar_columna_siga('ACTO SEGURO: (DESCRIPCIÓN DEL COMPORTAMIENTO SEGURO)')
 
-    # KPIs
+    # ✅ 3. KPIs superiores
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("✅ Total SIGA", f"{len(df_siga):,}")
     k2.metric("👥 Reportantes SIGA", df_siga['reportante'].nunique())
     k3.metric("🏭 Áreas reforzadas", df_siga['area'].nunique())
     k4.metric("👷 Cargos reforzados", df_siga['cargo_observado'].nunique())
 
+    # ✅ 4. Gráficos de áreas y cargos
     col_s1, col_s2 = st.columns(2)
-
     with col_s1:
         top_a_siga = df_siga['area'].value_counts().head(10).reset_index()
         top_a_siga.columns = ['area', 'n']
@@ -1452,19 +1449,7 @@ else:
         fig.update_layout(yaxis={'categoryorder': 'total ascending'})
         st.plotly_chart(fig, use_container_width=True)
 
-    actos_seguros = df_siga[df_siga['acto_seguro'] != 'SIN DATO']['acto_seguro']
-    if len(actos_seguros) > 0:
-        st.markdown("#### 📝 Comportamientos seguros reforzados")
-        top_seguros = actos_seguros.value_counts().head(10).reset_index()
-        top_seguros.columns = ['acto_seguro', 'n']
-        fig = px.bar(top_seguros, x='n', y='acto_seguro', orientation='h',
-                     color='n', color_continuous_scale='Greens')
-        fig.update_layout(yaxis={'categoryorder': 'total ascending'}, height=450)
-        st.plotly_chart(fig, use_container_width=True)
-
-    # ============================================================
-    # ✅ EVOLUCIÓN MENSUAL Y SEMANAL SIGA
-    # ============================================================
+    # ✅ 5. Evolución temporal
     st.markdown("---")
     st.markdown("#### 📈 Evolución temporal del reforzamiento positivo")
     col_ev1, col_ev2 = st.columns(2)
@@ -1474,128 +1459,58 @@ else:
                               .size().reset_index(name='observaciones'))
         trend_siga_mensual['fecha'] = trend_siga_mensual['fecha'].dt.to_timestamp()
         trend_siga_mensual['anio'] = trend_siga_mensual['anio'].astype(str)
-
         if len(trend_siga_mensual) > 0:
-            fig_mensual = px.line(
-                trend_siga_mensual, x='fecha', y='observaciones', color='anio',
-                markers=True, title="📅 Evolución Mensual (SIGA)",
-                labels={'fecha': 'Mes', 'observaciones': 'N° Reforzamientos'},
-                color_discrete_sequence=px.colors.qualitative.G10)
+            fig_mensual = px.line(trend_siga_mensual, x='fecha', y='observaciones', color='anio',
+                                  markers=True, title="📅 Evolución Mensual (SIGA)")
             fig_mensual.update_traces(line_width=3)
-            fig_mensual.update_layout(height=350, hovermode='x unified')
             st.plotly_chart(fig_mensual, use_container_width=True)
 
     with col_ev2:
         trend_siga_semanal = (df_siga.groupby('anio_semana_label')
                               .agg(observaciones=('fecha', 'size'))
                               .reset_index().sort_values('anio_semana_label'))
-
         if len(trend_siga_semanal) > 0:
-            fig_semanal = px.line(
-                trend_siga_semanal, x='anio_semana_label', y='observaciones',
-                markers=True, title="📆 Evolución Semanal (SIGA)",
-                labels={'anio_semana_label': 'Semana', 'observaciones': 'N° Reforzamientos'},
-                text='observaciones')
-            fig_semanal.update_traces(
-                line_color='#00CC96', line_width=3,
-                marker=dict(size=10), textposition='top center')
-            prom_sem = trend_siga_semanal['observaciones'].mean()
-            fig_semanal.add_hline(
-                y=prom_sem, line_dash='dash', line_color='orange',
-                annotation_text=f"Promedio: {prom_sem:.0f}",
-                annotation_position="right")
-            fig_semanal.update_layout(
-                height=350, hovermode='x unified',
-                xaxis=dict(type='category', tickangle=-45))
+            fig_semanal = px.line(trend_siga_semanal, x='anio_semana_label', y='observaciones',
+                                  markers=True, title="📆 Evolución Semanal (SIGA)")
             st.plotly_chart(fig_semanal, use_container_width=True)
 
-    # ============================================================
-    # ✅ TABLA DETALLE DE TARJETAS SIGA
-    # ============================================================
+    # ✅ 6. TABLA DETALLE (Única, sin duplicados)
     st.markdown("---")
     st.markdown("#### 📋 Detalle de tarjetas SIGA aplicadas")
     st.caption("Registro cronológico: quién aplica (reportante) y quién recibe (colaborador observado).")
 
-    detalle_siga = df_siga[[
-        'fecha', 'reportante', 'colaborador_observado',
-        'area', 'cargo_observado', 'acto_seguro'
-    ]].copy()
+    # Indicador total
+    st.metric(label="📋 Total Tarjetas SIGA (según filtros)", value=f"{len(df_siga):,}")
 
+    # Preparar datos de la tabla
+    detalle_siga = df_siga[['fecha', 'reportante', 'colaborador_observado', 'area', 'cargo_observado', 'acto_seguro']].copy()
     detalle_siga['fecha'] = pd.to_datetime(detalle_siga['fecha']).dt.strftime('%d/%m/%Y')
-    detalle_siga.columns = ['Fecha', 'Reportante (Aplica)', 'Colaborador (Recibe)',
-                            'Área', 'Cargo', 'Acto Seguro Reforzado']
+    detalle_siga.columns = ['Fecha', 'Reportante (Aplica)', 'Colaborador (Recibe)', 'Área', 'Cargo', 'Acto Seguro Reforzado']
     detalle_siga = detalle_siga.sort_values('Fecha', ascending=False)
 
-        # ============================================================
-    # ✅ INDICADOR TOTAL DE TARJETAS SIGA
-    # ============================================================
-    st.markdown("---")
-    st.markdown("#### 📋 Detalle de tarjetas SIGA aplicadas")
-    st.caption("Registro cronológico: quién aplica (reportante) y quién recibe (colaborador observado).")
-
-        # ============================================================
-    # ✅ FIX: Forzar que la tabla y el KPI respeten los filtros del sidebar
-    # ============================================================
-    # 1. Filtrar SOLO tarjetas SIGA (ignorar el filtro global si tiene PARE)
-    df_siga_filtrado = df_siga[df_siga['tipo_tarjeta'].str.contains('SIGA', na=False)].copy()
-    
-    # 2. Filtrar por el Año seleccionado en el sidebar
-    if len(anio_sel) > 0:
-        df_siga_filtrado = df_siga_filtrado[df_siga_filtrado['anio'].isin(anio_sel)]
-    
-    # 3. Filtrar por el CDA (Sede) seleccionado
-    if len(cda_sel) > 0:
-        df_siga_filtrado = df_siga_filtrado[df_siga_filtrado['cda'].isin(cda_sel)]
-        
-    # 4. Filtrar por el Rango de fechas
-    df_siga_filtrado = df_siga_filtrado[
-        (df_siga_filtrado['fecha'].dt.date >= rango[0]) & 
-        (df_siga_filtrado['fecha'].dt.date <= rango[1])
-    ]
-    
-    # 5. Evitar que "SIN DATO" infle el conteo si se seleccionó por error
-    df_siga_filtrado = df_siga_filtrado[df_siga_filtrado['colaborador_observado'] != 'SIN DATO']
-
-    # Actualizar el total con el dataframe filtrado
-    total_siga_actual = len(df_siga_filtrado)
-    
-    st.metric(label="📋 Total Tarjetas SIGA (según filtros)", value=f"{total_siga_actual:,}")
-        # Opción visual de KPI grande
-    col_total, _ = st.columns([1, 3])
-    with col_total:
-        st.metric(label="📋 Total Tarjetas SIGA", value=f"{total_siga_actual:,}") 
-    
-    # ... resto del código ...
-
-    # Filtros
+    # Filtros de la tabla
     col_f1, col_f2 = st.columns(2)
     with col_f1:
-        filtro_rep = st.selectbox(
-            "Filtrar por reportante:",
-            ["Todos"] + sorted(detalle_siga['Reportante (Aplica)'].unique().tolist()),
-            key="filtro_siga_rep")
+        filtro_rep = st.selectbox("Filtrar por reportante:", ["Todos"] + sorted(detalle_siga['Reportante (Aplica)'].unique().tolist()), key="filtro_siga_rep")
     with col_f2:
-        filtro_col = st.selectbox(
-            "Filtrar por colaborador:",
-            ["Todos"] + sorted(detalle_siga['Colaborador (Recibe)'].unique().tolist()),
-            key="filtro_siga_col")
+        filtro_col = st.selectbox("Filtrar por colaborador:", ["Todos"] + sorted(detalle_siga['Colaborador (Recibe)'].unique().tolist()), key="filtro_siga_col")
 
     if filtro_rep != "Todos":
         detalle_siga = detalle_siga[detalle_siga['Reportante (Aplica)'] == filtro_rep]
     if filtro_col != "Todos":
         detalle_siga = detalle_siga[detalle_siga['Colaborador (Recibe)'] == filtro_col]
 
+    # Mostrar tabla
     st.dataframe(detalle_siga, use_container_width=True, hide_index=True)
 
     # Descarga
-    csv_siga = detalle_siga.to_csv(index=False, sep=';').encode('utf-8-sig')
     st.download_button(
         label="⬇️ Descargar detalle de tarjetas SIGA (CSV)",
-        data=csv_siga,
+        data=detalle_siga.to_csv(index=False, sep=';').encode('utf-8-sig'),
         file_name="detalle_tarjetas_siga.csv",
         mime="text/csv",
-        key="dl_detalle_siga")
-
+        key="dl_detalle_siga"
+    ) 
 
 # ============ ACADEMIA DE SEGURIDAD ============
 st.divider()
