@@ -1401,41 +1401,31 @@ st.divider()
 st.subheader("✅ Reforzamiento positivo — Tarjeta SIGA")
 df_siga = dff[dff['tipo_tarjeta'].str.contains('SIGA', na=False)].copy()
 
-# ✅ FIX: Unificar columnas específicas de SIGA
-if len(df_siga) > 0:
-    # 1. Colaborador
-    cols_colab_siga = [c for c in df_siga.columns if 'NOMBRES Y APELLIDOS DEL COLABORADOR' in c.upper()]
-    if cols_colab_siga:
-        df_siga['colaborador_observado'] = (
-            df_siga[cols_colab_siga].bfill(axis=1).iloc[:, 0]
-            .fillna('SIN DATO').astype(str).str.strip().str.upper()
-        )
-
-    # 2. Área
-    cols_area_siga = [c for c in df_siga.columns if 'AREA A LA QUE PERTENECE' in c.upper()]
-    if cols_area_siga:
-        df_siga['area'] = (
-            df_siga[cols_area_siga].bfill(axis=1).iloc[:, 0]
-            .fillna('SIN DATO').astype(str).str.strip().str.upper()
-        )
-
-    # 3. Cargo
-    cols_cargo_siga = [c for c in df_siga.columns if 'CARGO DEL COLABORADOR' in c.upper()]
-    if cols_cargo_siga:
-        df_siga['cargo_observado'] = (
-            df_siga[cols_cargo_siga].bfill(axis=1).iloc[:, 0]
-            .fillna('SIN DATO').astype(str).str.strip().str.upper()
-        )
-
-    # 4. Limpiar vacíos
-    for col in ['colaborador_observado', 'area', 'cargo_observado']:
-        if col in df_siga.columns:
-            df_siga[col] = df_siga[col].replace(['', ' ', 'nan', 'NaN', 'NAN', 'None', 'NONE'], 'SIN DATO')
-            df_siga[col] = df_siga[col].fillna('SIN DATO').astype(str).str.strip().str.upper()
-
 if len(df_siga) == 0:
     st.info("No hay registros SIGA en el filtro actual.")
 else:
+    # ============================================================
+    # ✅ FIX: Extraer directo de las columnas de SIGA
+    # ============================================================
+    def limpiar_columna_siga(nombre_columna):
+        if nombre_columna in df_siga.columns:
+            return (df_siga[nombre_columna]
+                    .fillna('SIN DATO')
+                    .astype(str)
+                    .str.strip()
+                    .str.upper()
+                    .replace(['', ' ', 'NAN', 'NONE'], 'SIN DATO'))
+        return pd.Series(['SIN DATO'] * len(df_siga), index=df_siga.index)
+
+    # Asignar las columnas correctas de SIGA
+    df_siga['colaborador_observado'] = limpiar_columna_siga('NOMBRES Y APELLIDOS DEL COLABORADOR OBSERVADO (SIGA) :')
+    df_siga['area'] = limpiar_columna_siga('AREA A LA QUE PERTENECE EL COLABORADOR OBSERVADO :')
+    df_siga['cargo_observado'] = limpiar_columna_siga('Seleccione el cargo del colaborador observado')
+    
+    # Asegurar que acto_seguro también esté limpio
+    df_siga['acto_seguro'] = limpiar_columna_siga('ACTO SEGURO: (DESCRIPCIÓN DEL COMPORTAMIENTO SEGURO)')
+
+    # KPIs
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("✅ Total SIGA", f"{len(df_siga):,}")
     k2.metric("👥 Reportantes SIGA", df_siga['reportante'].nunique())
@@ -1462,7 +1452,7 @@ else:
         fig.update_layout(yaxis={'categoryorder': 'total ascending'})
         st.plotly_chart(fig, use_container_width=True)
 
-    actos_seguros = df_siga[df_siga['acto_seguro'].str.upper() != 'SIN DATO']['acto_seguro']
+    actos_seguros = df_siga[df_siga['acto_seguro'] != 'SIN DATO']['acto_seguro']
     if len(actos_seguros) > 0:
         st.markdown("#### 📝 Comportamientos seguros reforzados")
         top_seguros = actos_seguros.value_counts().head(10).reset_index()
@@ -1497,8 +1487,7 @@ else:
 
     with col_ev2:
         trend_siga_semanal = (df_siga.groupby('anio_semana_label')
-                              .agg(observaciones=('fecha', 'size'),
-                                   inicio=('inicio_semana', 'first'))
+                              .agg(observaciones=('fecha', 'size'))
                               .reset_index().sort_values('anio_semana_label'))
 
         if len(trend_siga_semanal) > 0:
@@ -1564,7 +1553,9 @@ else:
         data=csv_siga,
         file_name="detalle_tarjetas_siga.csv",
         mime="text/csv",
-        key="dl_detalle_siga") 
+        key="dl_detalle_siga")
+
+
 # ============ ACADEMIA DE SEGURIDAD ============
 st.divider()
 st.subheader("🎓 Personal derivado a Academia de Seguridad")
