@@ -1533,8 +1533,33 @@ else:
     st.markdown("#### 📋 Detalle de tarjetas SIGA aplicadas")
     st.caption("Registro cronológico: quién aplica (reportante) y quién recibe (colaborador observado).")
 
-    # Indicador destacado de total de tarjetas
-    total_siga_actual = len(df_siga)
+        # ============================================================
+    # ✅ FIX: Forzar que la tabla y el KPI respeten los filtros del sidebar
+    # ============================================================
+    # 1. Filtrar SOLO tarjetas SIGA (ignorar el filtro global si tiene PARE)
+    df_siga_filtrado = df_siga[df_siga['tipo_tarjeta'].str.contains('SIGA', na=False)].copy()
+    
+    # 2. Filtrar por el Año seleccionado en el sidebar
+    if len(anio_sel) > 0:
+        df_siga_filtrado = df_siga_filtrado[df_siga_filtrado['anio'].isin(anio_sel)]
+    
+    # 3. Filtrar por el CDA (Sede) seleccionado
+    if len(cda_sel) > 0:
+        df_siga_filtrado = df_siga_filtrado[df_siga_filtrado['cda'].isin(cda_sel)]
+        
+    # 4. Filtrar por el Rango de fechas
+    df_siga_filtrado = df_siga_filtrado[
+        (df_siga_filtrado['fecha'].dt.date >= rango[0]) & 
+        (df_siga_filtrado['fecha'].dt.date <= rango[1])
+    ]
+    
+    # 5. Evitar que "SIN DATO" infle el conteo si se seleccionó por error
+    df_siga_filtrado = df_siga_filtrado[df_siga_filtrado['colaborador_observado'] != 'SIN DATO']
+
+    # Actualizar el total con el dataframe filtrado
+    total_siga_actual = len(df_siga_filtrado)
+    
+    st.metric(label="📋 Total Tarjetas SIGA (según filtros)", value=f"{total_siga_actual:,}")
         # Opción visual de KPI grande
     col_total, _ = st.columns([1, 3])
     with col_total:
