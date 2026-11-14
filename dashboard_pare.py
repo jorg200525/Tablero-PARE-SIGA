@@ -1508,6 +1508,63 @@ else:
             st.plotly_chart(fig_semanal, use_container_width=True)
         else:
             st.info("No hay datos semanales SIGA.")  
+
+    # ============================================================
+    # ✅ NUEVO: TABLA DETALLE DE TARJETAS SIGA
+    # ============================================================
+    st.markdown("---")
+    st.markdown("#### 📋 Detalle de tarjetas SIGA aplicadas")
+    st.caption("Registro cronológico de refuerzos positivos: quién aplica (reportante) y quién recibe (colaborador observado).")
+
+    # Preparar los datos para la tabla
+    detalle_siga = df_siga[[
+        'fecha', 
+        'reportante', 
+        'colaborador_observado', 
+        'area', 
+        'cargo_observado', 
+        'acto_seguro'
+    ]].copy()
+
+    # Formatear fecha a DD/MM/YYYY
+    detalle_siga['fecha'] = pd.to_datetime(detalle_siga['fecha']).dt.strftime('%d/%m/%Y')
+
+    # Renombrar columnas
+    detalle_siga.columns = [
+        'Fecha', 
+        'Reportante (Aplica)', 
+        'Colaborador (Recibe)', 
+        'Área', 
+        'Cargo', 
+        'Acto Seguro Reforzado'
+    ]
+
+    # Ordenar por fecha descendente (más reciente primero)
+    detalle_siga = detalle_siga.sort_values('Fecha', ascending=False)
+
+    # Mostrar tabla con filtro de búsqueda
+    st.dataframe(
+        detalle_siga,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
+            "Reportante (Aplica)": st.column_config.TextColumn("Reportante (Aplica)", width="medium"),
+            "Colaborador (Recibe)": st.column_config.TextColumn("Colaborador (Recibe)", width="medium"),
+            "Acto Seguro Reforzado": st.column_config.TextColumn("Acto Seguro Reforzado", width="large"),
+        }
+    )
+
+    # Botón de descarga específico para esta tabla
+    csv_siga = detalle_siga.to_csv(index=False, sep=';').encode('utf-8-sig')
+    st.download_button(
+        label="⬇️ Descargar detalle de tarjetas SIGA (CSV)",
+        data=csv_siga,
+        file_name="detalle_tarjetas_siga.csv",
+        mime="text/csv",
+        key="dl_detalle_siga"
+    )
+    
 # ============ ACADEMIA DE SEGURIDAD ============
 st.divider()
 st.subheader("🎓 Personal derivado a Academia de Seguridad")
