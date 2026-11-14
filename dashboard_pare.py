@@ -1396,10 +1396,6 @@ except Exception as e:
 
 
 # ============ SIGA ============
-st.divider()
-st.subheader("✅ Reforzamiento positivo — Tarjeta SIGA")
-df_siga = dff[dff['tipo_tarjeta'].str.contains('SIGA', na=False)].copy()
-
 # ============ SIGA ============
 st.divider()
 st.subheader("✅ Reforzamiento positivo — Tarjeta SIGA")
@@ -1410,29 +1406,32 @@ if len(df_siga) > 0:
     # 1. Colaborador
     cols_colab_siga = [c for c in df_siga.columns if 'NOMBRES Y APELLIDOS DEL COLABORADOR' in c.upper()]
     if cols_colab_siga:
-        df_siga['colaborador_observado'] = df_siga[cols_colab_siga].bfill(axis=1).iloc[:, 0].fillna('SIN DATO').astype(str).str.strip().str.upper()
+        df_siga['colaborador_observado'] = (
+            df_siga[cols_colab_siga].bfill(axis=1).iloc[:, 0]
+            .fillna('SIN DATO').astype(str).str.strip().str.upper()
+        )
 
     # 2. Área
     cols_area_siga = [c for c in df_siga.columns if 'AREA A LA QUE PERTENECE' in c.upper()]
     if cols_area_siga:
-        df_siga['area'] = df_siga[cols_area_siga].bfill(axis=1).iloc[:, 0].fillna('SIN DATO').astype(str).str.strip().str.upper()
+        df_siga['area'] = (
+            df_siga[cols_area_siga].bfill(axis=1).iloc[:, 0]
+            .fillna('SIN DATO').astype(str).str.strip().str.upper()
+        )
 
     # 3. Cargo
     cols_cargo_siga = [c for c in df_siga.columns if 'CARGO DEL COLABORADOR' in c.upper()]
     if cols_cargo_siga:
-        df_siga['cargo_observado'] = df_siga[cols_cargo_siga].bfill(axis=1).iloc[:, 0].fillna('SIN DATO').astype(str).str.strip().str.upper()
+        df_siga['cargo_observado'] = (
+            df_siga[cols_cargo_siga].bfill(axis=1).iloc[:, 0]
+            .fillna('SIN DATO').astype(str).str.strip().str.upper()
+        )
 
-    # 4. Limpiar valores vacíos o raros
+    # 4. Limpiar vacíos
     for col in ['colaborador_observado', 'area', 'cargo_observado']:
         if col in df_siga.columns:
             df_siga[col] = df_siga[col].replace(['', ' ', 'nan', 'NaN', 'NAN', 'None', 'NONE'], 'SIN DATO')
             df_siga[col] = df_siga[col].fillna('SIN DATO').astype(str).str.strip().str.upper()
-
-if len(df_siga) == 0:
-    st.info("No hay registros SIGA en el filtro actual.")
-else:
-    # ... (el resto del código de SIGA sigue igual)
-    
 
 if len(df_siga) == 0:
     st.info("No hay registros SIGA en el filtro actual.")
@@ -1474,131 +1473,98 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
     # ============================================================
-    # ✅ NUEVO: EVOLUCIÓN MENSUAL Y SEMANAL SIGA
+    # ✅ EVOLUCIÓN MENSUAL Y SEMANAL SIGA
     # ============================================================
     st.markdown("---")
     st.markdown("#### 📈 Evolución temporal del reforzamiento positivo")
-
     col_ev1, col_ev2 = st.columns(2)
 
-    # --- Evolución Mensual ---
     with col_ev1:
         trend_siga_mensual = (df_siga.groupby([df_siga['fecha'].dt.to_period('M'), 'anio'])
-                              .size()
-                              .reset_index(name='observaciones'))
+                              .size().reset_index(name='observaciones'))
         trend_siga_mensual['fecha'] = trend_siga_mensual['fecha'].dt.to_timestamp()
         trend_siga_mensual['anio'] = trend_siga_mensual['anio'].astype(str)
 
         if len(trend_siga_mensual) > 0:
             fig_mensual = px.line(
-                trend_siga_mensual,
-                x='fecha',
-                y='observaciones',
-                color='anio',
-                markers=True,
-                title="📅 Evolución Mensual (SIGA)",
+                trend_siga_mensual, x='fecha', y='observaciones', color='anio',
+                markers=True, title="📅 Evolución Mensual (SIGA)",
                 labels={'fecha': 'Mes', 'observaciones': 'N° Reforzamientos'},
-                color_discrete_sequence=px.colors.qualitative.G10
-            )
+                color_discrete_sequence=px.colors.qualitative.G10)
             fig_mensual.update_traces(line_width=3)
             fig_mensual.update_layout(height=350, hovermode='x unified')
             st.plotly_chart(fig_mensual, use_container_width=True)
-        else:
-            st.info("No hay datos mensuales SIGA.")
 
-    # --- Evolución Semanal ---
     with col_ev2:
         trend_siga_semanal = (df_siga.groupby('anio_semana_label')
                               .agg(observaciones=('fecha', 'size'),
                                    inicio=('inicio_semana', 'first'))
-                              .reset_index()
-                              .sort_values('anio_semana_label'))
+                              .reset_index().sort_values('anio_semana_label'))
 
         if len(trend_siga_semanal) > 0:
             fig_semanal = px.line(
-                trend_siga_semanal,
-                x='anio_semana_label',
-                y='observaciones',
-                markers=True,
-                title="📆 Evolución Semanal (SIGA)",
+                trend_siga_semanal, x='anio_semana_label', y='observaciones',
+                markers=True, title="📆 Evolución Semanal (SIGA)",
                 labels={'anio_semana_label': 'Semana', 'observaciones': 'N° Reforzamientos'},
-                text='observaciones'
-            )
+                text='observaciones')
             fig_semanal.update_traces(
                 line_color='#00CC96', line_width=3,
-                marker=dict(size=10), textposition='top center'
-            )
-            # Promedio semanal
+                marker=dict(size=10), textposition='top center')
             prom_sem = trend_siga_semanal['observaciones'].mean()
             fig_semanal.add_hline(
                 y=prom_sem, line_dash='dash', line_color='orange',
                 annotation_text=f"Promedio: {prom_sem:.0f}",
-                annotation_position="right"
-            )
+                annotation_position="right")
             fig_semanal.update_layout(
                 height=350, hovermode='x unified',
-                xaxis=dict(type='category', tickangle=-45)
-            )
+                xaxis=dict(type='category', tickangle=-45))
             st.plotly_chart(fig_semanal, use_container_width=True)
-        else:
-            st.info("No hay datos semanales SIGA.")  
 
     # ============================================================
-    # ✅ NUEVO: TABLA DETALLE DE TARJETAS SIGA
+    # ✅ TABLA DETALLE DE TARJETAS SIGA
     # ============================================================
     st.markdown("---")
     st.markdown("#### 📋 Detalle de tarjetas SIGA aplicadas")
-    st.caption("Registro cronológico de refuerzos positivos: quién aplica (reportante) y quién recibe (colaborador observado).")
+    st.caption("Registro cronológico: quién aplica (reportante) y quién recibe (colaborador observado).")
 
-    # Preparar los datos para la tabla
     detalle_siga = df_siga[[
-        'fecha', 
-        'reportante', 
-        'colaborador_observado', 
-        'area', 
-        'cargo_observado', 
-        'acto_seguro'
+        'fecha', 'reportante', 'colaborador_observado',
+        'area', 'cargo_observado', 'acto_seguro'
     ]].copy()
 
-    # Formatear fecha a DD/MM/YYYY
     detalle_siga['fecha'] = pd.to_datetime(detalle_siga['fecha']).dt.strftime('%d/%m/%Y')
-
-    # Renombrar columnas
-    detalle_siga.columns = [
-        'Fecha', 
-        'Reportante (Aplica)', 
-        'Colaborador (Recibe)', 
-        'Área', 
-        'Cargo', 
-        'Acto Seguro Reforzado'
-    ]
-
-    # Ordenar por fecha descendente (más reciente primero)
+    detalle_siga.columns = ['Fecha', 'Reportante (Aplica)', 'Colaborador (Recibe)',
+                            'Área', 'Cargo', 'Acto Seguro Reforzado']
     detalle_siga = detalle_siga.sort_values('Fecha', ascending=False)
 
-    # Mostrar tabla con filtro de búsqueda
-    st.dataframe(
-        detalle_siga,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
-            "Reportante (Aplica)": st.column_config.TextColumn("Reportante (Aplica)", width="medium"),
-            "Colaborador (Recibe)": st.column_config.TextColumn("Colaborador (Recibe)", width="medium"),
-            "Acto Seguro Reforzado": st.column_config.TextColumn("Acto Seguro Reforzado", width="large"),
-        }
-    )
+    # Filtros
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        filtro_rep = st.selectbox(
+            "Filtrar por reportante:",
+            ["Todos"] + sorted(detalle_siga['Reportante (Aplica)'].unique().tolist()),
+            key="filtro_siga_rep")
+    with col_f2:
+        filtro_col = st.selectbox(
+            "Filtrar por colaborador:",
+            ["Todos"] + sorted(detalle_siga['Colaborador (Recibe)'].unique().tolist()),
+            key="filtro_siga_col")
 
-    # Botón de descarga específico para esta tabla
+    if filtro_rep != "Todos":
+        detalle_siga = detalle_siga[detalle_siga['Reportante (Aplica)'] == filtro_rep]
+    if filtro_col != "Todos":
+        detalle_siga = detalle_siga[detalle_siga['Colaborador (Recibe)'] == filtro_col]
+
+    st.dataframe(detalle_siga, use_container_width=True, hide_index=True)
+
+    # Descarga
     csv_siga = detalle_siga.to_csv(index=False, sep=';').encode('utf-8-sig')
     st.download_button(
         label="⬇️ Descargar detalle de tarjetas SIGA (CSV)",
         data=csv_siga,
         file_name="detalle_tarjetas_siga.csv",
         mime="text/csv",
-        key="dl_detalle_siga"
-    )
-    
+        key="dl_detalle_siga") 
 # ============ ACADEMIA DE SEGURIDAD ============
 st.divider()
 st.subheader("🎓 Personal derivado a Academia de Seguridad")
